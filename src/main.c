@@ -1,13 +1,67 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
+#include "hardware/gpio.h"
 
 #include "tusb.h"
+#include "host/usbh.h"
 #include "bsp/board_api.h"
+#include "pio_usb.h"
 #include "tusb_gamepad.h"
 
-void update_gamepad(Gamepad* gp);
+// Board defs, values don't matter as long as they're unique
+#define PI_PICO 1
+#define ADAFRUIT_FEATHER 2
+
+// Choose a board here //
+#define RP2040_BOARD ADAFRUIT_FEATHER
+// ------------------- //
+
+// Setting D+/D- host pins, DM = DP + 1
+#if RP2040_BOARD == PI_PICO
+    #define PIO_USB_DP_PIN 0
+#elif RP2040_BOARD == ADAFRUIT_FEATHER
+    #define PIO_USB_DP_PIN 16
+#endif
+
+// define pio config
+#define PIO_USB_CONFIG {    \
+    PIO_USB_DP_PIN,         \
+    PIO_USB_TX_DEFAULT,     \
+    PIO_SM_USB_TX_DEFAULT,  \
+    PIO_USB_DMA_TX_DEFAULT, \
+    PIO_USB_RX_DEFAULT,     \
+    PIO_SM_USB_RX_DEFAULT,  \
+    PIO_SM_USB_EOP_DEFAULT, \
+    NULL,                   \
+    PIO_USB_DEBUG_PIN_NONE, \
+    PIO_USB_DEBUG_PIN_NONE, \
+    false,                  \
+    PIO_USB_PINOUT_DPDM }
+
+extern void hid_app_task(void); // see hid_app.c
+
+void usbh_task()
+{
+    #if RP2040_BOARD == ADAFRUIT_FEATHER // Board needs VCC enabled on the USB host port
+        #define VCC_EN_PIN 18
+        gpio_init(VCC_EN_PIN);
+        gpio_set_dir(VCC_EN_PIN, GPIO_OUT);
+        gpio_put(VCC_EN_PIN, 1);
+    #endif
+
+    pio_usb_configuration_t pio_cfg = PIO_USB_CONFIG;
+    tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+
+    tuh_init(BOARD_TUH_RHPORT);
+
+    while (1)
+    {
+        tuh_task();
+        hid_app_task(); // updates gamepad with dualshock 4 data
+    }
+}
 
 int main(void) 
 {
@@ -15,180 +69,20 @@ int main(void)
 
     board_init();
 
-    enum InputMode input_mode = INPUT_MODE_XINPUT;
+    enum InputMode input_mode = INPUT_MODE_XINPUT; // choose an input mode
 
-    init_tusb_gamepad(input_mode);
+    init_tusb_gamepad(input_mode); // initalize usb device with chosen input mode
 
-    Gamepad* gp = gamepad(0);
+    multicore_reset_core1();
+    multicore_launch_core1(usbh_task); // usb host stack on core 1
 
     while (1) 
     {
-        update_gamepad(gp);
-
-        tusb_gamepad_task();
+        tusb_gamepad_task(); // send and receive gamepad data
 
         sleep_ms(1);
         tud_task();
     }
 
     return 0;
-}
-
-void update_gamepad(Gamepad* gp)
-{
-    // Increment triggers
-    if (gp->triggers.l < UINT8_MAX) 
-    {
-        gp->triggers.l++;
-        gp->triggers.r++;
-    } 
-    else 
-    {
-        gp->reset_triggers(gp); // Reset triggers to zero
-    }
-
-    unsigned long current_time = to_ms_since_boot(get_absolute_time());
-
-    // Change joystick direction every second
-    static unsigned long last_joy_time = 0;
-    static int current_direction = 0;
-
-    if (current_time - last_joy_time >= 1000) 
-    {
-        last_joy_time = current_time;
-
-        gp->reset_joysticks(gp); // Reset joysticks to center
-
-        switch (current_direction)
-        {
-            case 0:
-                gp->joysticks.ly = INT16_MAX;
-                gp->joysticks.ry = INT16_MAX;
-                current_direction++;
-                break;
-            case 1:
-                gp->joysticks.ly = INT16_MAX;
-                gp->joysticks.ry = INT16_MAX;
-                gp->joysticks.lx = INT16_MAX;
-                gp->joysticks.rx = INT16_MAX;
-                current_direction++;
-                break;
-            case 2:
-                gp->joysticks.lx = INT16_MAX;
-                gp->joysticks.rx = INT16_MAX;
-                current_direction++;
-                break;
-            case 3:
-                gp->joysticks.ly = INT16_MIN;
-                gp->joysticks.ry = INT16_MIN;
-                gp->joysticks.lx = INT16_MAX;
-                gp->joysticks.rx = INT16_MAX;
-                current_direction++;
-                break;
-            case 4:
-                gp->joysticks.ly = INT16_MIN;
-                gp->joysticks.ry = INT16_MIN;
-                current_direction++;
-                break;
-            case 5:
-                gp->joysticks.ly = INT16_MIN;
-                gp->joysticks.ry = INT16_MIN;
-                gp->joysticks.lx = INT16_MIN;
-                gp->joysticks.rx = INT16_MIN;                
-                current_direction++;
-                break;
-            case 6:
-                gp->joysticks.lx = INT16_MIN;
-                gp->joysticks.rx = INT16_MIN;
-                current_direction++;
-                break;
-            case 7:
-                gp->joysticks.lx = INT16_MIN;
-                gp->joysticks.rx = INT16_MIN;
-                gp->joysticks.ly = INT16_MAX;
-                gp->joysticks.ry = INT16_MAX;
-                current_direction = 0;
-                break;
-        }
-    }
-
-
-    // Change button press every 500ms
-    static unsigned long last_btn_time = 0;
-    static int current_button = 0;
-
-    if (current_time - last_btn_time >= 500) 
-    {
-        last_btn_time = current_time;
-
-        gp->reset_buttons(gp); // Reset all buttons
-
-        switch (current_button)
-        {
-            case 0:
-                gp->buttons.up = true;
-                current_button++;
-                break;
-            case 1:
-                gp->buttons.down = true;
-                current_button++;
-                break;
-            case 2:
-                gp->buttons.left = true;
-                current_button++;
-                break;
-            case 3:
-                gp->buttons.right = true;
-                current_button++;
-                break;
-            case 4:
-                gp->buttons.a = true;
-                current_button++;
-                break;
-            case 5:
-                gp->buttons.b = true;
-                current_button++;
-                break;
-            case 6:
-                gp->buttons.x = true;
-                current_button++;
-                break;
-            case 7:
-                gp->buttons.y = true;
-                current_button++;
-                break;
-            case 8:
-                gp->buttons.l3 = true;
-                current_button++;
-                break;
-            case 9:
-                gp->buttons.r3 = true;
-                current_button++;
-                break;
-            case 10:
-                gp->buttons.back = true;
-                current_button++;
-                break;
-            case 11:
-                gp->buttons.start = true;
-                current_button++;
-                break;
-            case 12:
-                gp->buttons.rb = true;
-                current_button++;
-                break;
-            case 13:
-                gp->buttons.lb = true;
-                current_button++;
-                break;
-            case 14:
-                gp->buttons.sys = true;
-                current_button++;
-                break;
-            case 15:
-                gp->buttons.misc = true;
-                current_button = 0;
-                break;
-        }
-    }
 }

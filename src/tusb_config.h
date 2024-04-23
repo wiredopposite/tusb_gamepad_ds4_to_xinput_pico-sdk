@@ -32,7 +32,7 @@
 
 #include "board_config.h"
 
-#define MAX_GAMEPADS 1
+#define MAX_GAMEPADS 1 // optional, defaults to 1 if not defined
 
 //--------------------------------------------------------------------+
 // Board Specific Configuration
@@ -46,6 +46,16 @@
 // RHPort max operational speed can defined by board.mk
 #ifndef BOARD_TUD_MAX_SPEED
 #define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
+// RHPort number used for host can be defined by board.mk, default to port 1
+#ifndef BOARD_TUH_RHPORT
+#define BOARD_TUH_RHPORT      1
+#endif
+
+// RHPort max operational speed can defined by board.mk
+#ifndef BOARD_TUH_MAX_SPEED
+#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
 //--------------------------------------------------------------------
@@ -65,11 +75,18 @@
 #define CFG_TUSB_DEBUG        0
 #endif
 
-// Enable Device stack
+// Enable Device stack, Default is max speed that hardware controller could support with on-chip PHY
 #define CFG_TUD_ENABLED       1
-
-// Default is max speed that hardware controller could support with on-chip PHY
 #define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
+
+// Enable Host stack, Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUH_ENABLED       1
+#define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
+
+#if CFG_TUSB_MCU == OPT_MCU_RP2040
+// Use pico-pio-usb as host controller for raspberry rp2040
+#define CFG_TUH_RPI_PIO_USB   1
+#endif
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -106,6 +123,29 @@
 
 #define CFG_TUD_CDC_TX_BUFSIZE 256
 #define CFG_TUD_CDC_RX_BUFSIZE 256
+
+//--------------------------------------------------------------------
+// HOST CONFIGURATION
+//--------------------------------------------------------------------
+
+// Size of buffer to hold descriptors and other data used for enumeration
+#define CFG_TUH_ENUMERATION_BUFSIZE 256
+
+#ifndef CFG_TUH_MEM_SECTION
+#define CFG_TUH_MEM_SECTION
+#endif
+
+#ifndef CFG_TUH_MEM_ALIGN
+#define CFG_TUH_MEM_ALIGN           __attribute__ ((aligned(4)))
+#endif
+
+#define CFG_TUH_HUB                 1
+// max device support (excluding hub device)
+#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
+
+#define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX)
+#define CFG_TUH_HID_EPIN_BUFSIZE    64
+#define CFG_TUH_HID_EPOUT_BUFSIZE   64
 
 #ifdef __cplusplus
  }
