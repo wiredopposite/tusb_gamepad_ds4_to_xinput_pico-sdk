@@ -18,27 +18,23 @@ if (PICO_SDK_VERSION_STRING VERSION_LESS "1.3.0")
 endif()
 
 set(ROOT ${CMAKE_CURRENT_LIST_DIR})
-#set(PICO_PIO_USB_PATH ${ROOT}/lib/Pico-PIO-USB)
 set(PICO_TINYUSB_PATH ${ROOT}/lib/tinyusb)
 set(TUSB_GAMEPAD_PATH ${ROOT}/lib/tusb_gamepad)
 
 pico_sdk_init()
 
-#add_subdirectory(${PICO_PIO_USB_PATH})
 add_subdirectory(${TUSB_GAMEPAD_PATH})
-target_include_directories(tusb_gamepad PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src) # to tusb_gamepad can see tusb_config.h
+target_include_directories(tusb_gamepad PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src) # so tusb_gamepad can see tusb_config.h
 
 file(GLOB_RECURSE SOURCES 
     "src/main.c"
-    "src/hid_app.c"
-)
+    "src/hid_app.c")
 
 add_executable(${NAME} ${SOURCES})
 
 target_include_directories(${NAME} PUBLIC
     ${ROOT}/src 
-    ${ROOT}/lib
-)
+    ${ROOT}/lib)
 
 target_link_libraries(${NAME}
     pico_stdlib
@@ -47,7 +43,6 @@ target_link_libraries(${NAME}
     tinyusb_board
     tinyusb_host
     tinyusb_pico_pio_usb
-    tusb_gamepad
-)
+    tusb_gamepad)
 
 pico_add_extra_outputs(${NAME})
