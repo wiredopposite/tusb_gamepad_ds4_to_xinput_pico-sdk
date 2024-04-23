@@ -26,11 +26,13 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
-#include "board_config.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#include "board_config.h"
+
+#define MAX_GAMEPADS 1
 
 //--------------------------------------------------------------------+
 // Board Specific Configuration
