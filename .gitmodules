@@ -1,6 +1,3 @@
-[submodule "lib/tinyusb"]
-	path = lib/tinyusb
-	url = https://github.com/hathach/tinyusb.git
 [submodule "lib/tusb_gamepad"]
 	path = lib/tusb_gamepad
 	url = https://github.com/wiredopposite/tusb_gamepad.git
