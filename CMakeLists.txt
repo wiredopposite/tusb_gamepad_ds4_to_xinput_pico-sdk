@@ -22,37 +22,24 @@ if (PICO_SDK_VERSION_STRING VERSION_LESS "1.3.0")
     message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.3.0 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
 endif()
 
-set(PICO_TINYUSB_PATH "${CMAKE_CURRENT_LIST_DIR}/lib/tinyusb")
-set(TUSB_GAMEPAD_PATH "${CMAKE_CURRENT_LIST_DIR}/lib/tusb_gamepad")
+set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/lib/tinyusb)
+set(TUSB_GAMEPAD_ROOT ${CMAKE_CURRENT_LIST_DIR}/lib/tusb_gamepad)
+
+add_subdirectory(${TUSB_GAMEPAD_ROOT})
+target_include_directories(tusb_gamepad PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src) # so tusb_gamepad can see your tusb_config.h file
 
 pico_sdk_init()
 
-add_subdirectory(lib)
-
-file(GLOB_RECURSE SOURCES 
-"src/main.cpp"
-)
-
-# Firmware
-add_executable(${NAME}
-${SOURCES}
-    )
+file(GLOB_RECURSE SOURCES "src/main.c")
+add_executable(${NAME} ${SOURCES})
 
 target_include_directories(${NAME} PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/lib)
 
-include_directories(
-lib/)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/lib)
 
 target_link_libraries(${NAME}
     pico_stdlib
-    pico_unique_id
-    pico_multicore
-    hardware_watchdog
-    hardware_flash
-    hardware_sync
-    hardware_uart
-    hardware_pio
     tinyusb_device
     tinyusb_board
     tusb_gamepad
